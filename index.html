@@ -140,6 +140,13 @@ textarea.text{min-height:110px;resize:vertical;font-size:.88rem}
 .rec .why{margin-top:3px}
 .rec .okm{color:var(--ok);font-weight:700;margin-right:6px}
 .recsum{cursor:pointer;font-weight:600;margin:8px 0}
+.skw{display:inline-block;margin-right:.55em;white-space:nowrap}
+.sk{display:inline-block;border-bottom:4px solid var(--accent);border-radius:2px;padding:0 1px;margin-right:6px}
+.skw .sk:last-child{margin-right:0}
+.skinfo{color:var(--muted);font-size:.9rem;margin:2px 0 0}
+.wdots{display:flex;gap:8px;margin-top:12px}
+.wdots i{width:12px;height:12px;border-radius:50%;background:var(--line)}
+.wdots i.on{background:var(--accent)}
 .miss-list{list-style:none;padding:0;margin:0}
 .miss-list li{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line);align-items:baseline}
 .miss-list .n{color:var(--red);font-weight:700;min-width:2.5em}
@@ -424,6 +431,7 @@ function renderPractice(){
 }
 let cardFlipped=false;
 function renderCards(s,task,stage){
+  if(task.wp&&task.wp.on)return renderWrite(s,task,stage);
   const n=task.ids.length, i=Math.min(task.ci||0,n-1), w=WORDS[task.ids[i]];
   task.seen=task.seen||[];
   const persist=()=>{if(!PR)saveS()};
@@ -441,9 +449,10 @@ function renderCards(s,task,stage){
     const seen=task.seen.length, all=task.ids.every(x=>task.seen.includes(x));
     $('#ccount').innerHTML=`${PR?`<b>${PR.label}</b> `:''}先学新词：第 ${i+1} 张，共 ${n} 张　${task.seen.includes(w.id)?'<span class="seen-mark">✓ 已翻看</span>':''}`;
     $('#cbar').style.width=Math.round(seen/n*100)+'%';
-    $('#cgo').innerHTML=all?`<button class="btn" id="cstart" style="width:100%">我都学好了，开始测试</button><p class="small muted">还没记住的话，可以继续前后翻卡复习，准备好再开始。</p>`
+    $('#cgo').innerHTML=all?`<button class="btn" id="cwrite" style="width:100%;background:var(--accent)">✍️ 练习生字（每个写 3 遍）</button><button class="btn" id="cstart" style="width:100%;margin-top:10px">我都学好了，开始测试</button><p class="small muted">还没记住的话，可以继续前后翻卡复习，准备好再开始。</p>`
       :`<p class="small muted">已翻看 ${seen} / ${n} 张。每一张都翻看过，就可以开始测试。</p>`;
     if($('#cstart'))$('#cstart').onclick=()=>{cardFlipped=false;advance(true)};
+    if($('#cwrite'))$('#cwrite').onclick=()=>{task.wp={on:true,i:0,n:0};persist();renderWrite(s,task,stage)};
   };
   refresh();
   $('#fc').onclick=()=>{cardFlipped=!cardFlipped;$('#fc').classList.toggle('is-flipped',cardFlipped);const sp=$('#spk');if(sp)sp.hidden=!cardFlipped;
@@ -455,6 +464,107 @@ function renderCards(s,task,stage){
       const kk=PR.kind;PR=null;cardFlipped=false;renderPractice();const m=$('#pmsg');if(m){m.textContent=kk==='new'?'已退出，这批新词没有记录。想学的话可以再按一次。':'已退出练习。';m.scrollIntoView({block:'center'})}return}
     stage.innerHTML=`<section class="panel"><h2>已暂停</h2><p>进度已经保存，你正在学第 ${i+1} 张新词卡，共 ${n} 张。</p><p class="small muted">关掉页面也没关系，下次打开会从这里继续。今天之内做完，才拿得到今天的完成码。</p><button class="btn mt" id="resume">继续学习</button></section>`;
     $('#resume').onclick=()=>renderCards(s,task,stage)};
+}
+const SK_ON=new Set(['pr','br','tr','dr','kr','gr','fr','pl','bl','kl','gl','fl']);
+const SK_EXC={kelantan:'ke-lan-tan',kedukan:'ke-du-kan',kesan:'ke-san',kesembilan:'ke-sem-bi-lan',pekan:'pe-kan',pelan:'pe-lan',
+  penyimpan:'pe-nyim-pan',pengaman:'peng-a-man',pengiran:'peng-i-ran',bangunan:'ban-gun-an',melindungi:'me-lin-dung-i',
+  mengimbangi:'meng-im-bang-i',tandatangan:'tan-da-tan-gan',perkenan:'per-ke-nan',lingua:'lin-gua',keluaran:'ke-luar-an',luaran:'luar-an',kemasyhuran:'ke-ma-syhu-ran',pemasyhuran:'pe-ma-syhu-ran'};
+const SK_PERV=new Set(['peraturan','perubahan','perubatan','perairan','peralihan','peralatan','peradaban','perikanan','perikatan','perindustrian','perisytiharan','perundangan','perantaraan','perarakan','perenampuluhan']);
+function skCore(w){
+  const V=/[aeiou]/i, DG=['ny','sy','kh','gh','ng'], tk=[];
+  for(let i=0;i<w.length;){
+    const two=w.slice(i,i+2).toLowerCase();
+    if(w.slice(i,i+3).toLowerCase()==='uar'&&i>0&&w[i-1].toLowerCase()==='l'&&!/[aeiou]/i.test(w[i+3]||'')){tk.push({s:w.slice(i,i+3),v:true});i+=3}
+    else if(w.slice(i,i+3).toLowerCase()==='syh'){tk.push({s:w.slice(i,i+3),v:false});i+=3}
+    else if(DG.includes(two)){tk.push({s:w.slice(i,i+2),v:false});i+=2}
+    else{tk.push({s:w[i],v:V.test(w[i])});i++}
+  }
+  for(let i=tk.length-2;i>=1;i--){
+    if(tk[i].s.toLowerCase()==='ng'&&tk[i-1].v&&tk[i+1].v){
+      const s=tk[i].s;tk.splice(i,1,{s:s[0],v:false},{s:s[1],v:false});
+    }
+  }
+  const n=tk.length;
+  if(n>=2&&tk[n-1].v&&tk[n-2].v){const d=(tk[n-2].s+tk[n-1].s).toLowerCase();
+    if(d==='ai'||d==='au'||d==='oi')tk.splice(n-2,2,{s:tk[n-2].s+tk[n-1].s,v:true})}
+  const vi=[];tk.forEach((t,i)=>{if(t.v)vi.push(i)});
+  if(vi.length<2)return [w];
+  const cuts=[];
+  for(let j=0;j<vi.length-1;j++){
+    const p=vi[j],q=vi[j+1],k=q-p-1;
+    if(k===0)cuts.push(q);
+    else if(k===1)cuts.push(p+1);
+    else cuts.push(SK_ON.has((tk[q-2].s+tk[q-1].s).toLowerCase())?q-2:q-1);
+  }
+  const out=[];let from=0;
+  for(const c of cuts){out.push(tk.slice(from,c).map(t=>t.s).join(''));from=c}
+  out.push(tk.slice(from).map(t=>t.s).join(''));
+  return out;
+}
+function skAn(w){ // root + suffix -an (w ends with 'an')
+  const root=w.slice(0,-2);
+  return /[aeiou]/i.test(root)?[...skCore(root),w.slice(-2)]:skCore(w);
+}
+function sukuKata(w){
+  const lw=w.toLowerCase();
+  if(SK_EXC[lw]){let i=0;return SK_EXC[lw].split('-').map(p=>{const s=w.slice(i,i+p.length);i+=p.length;return s})}
+  const an=/an$/.test(lw), C='bcdfghjklmnpqrstvwxz';
+  let m=/^(meng|peng)(?=[aeiou])/.exec(lw);
+  if(m){const rest=w.slice(4);return [w.slice(0,4),...(m[1]==='peng'&&an?skAn(rest):skCore(rest))]}
+  if(an&&lw.length>=7&&lw.startsWith('ke'))return ['ke',...skAn(w.slice(2))];
+  if(an){m=/^(peng|per|pem|pen)(?=[bcdfghjklmnpqrstvwxz])/.exec(lw);
+    const L=m?m[1].length:(SK_PERV.has(lw.replace(/[^a-z]/g,''))?3:0);
+    if(L)return [w.slice(0,L),...skAn(w.slice(L))]}
+  if(an&&lw.length>=7&&lw.startsWith('pe')&&/[aeiou]/.test(lw.slice(2,-2)))return ['pe',...skAn(w.slice(2))];
+  if(/ngan$/.test(lw)){const r=skCore(w.slice(0,-2));if(r.length>=2)return [...r,w.slice(-2)]}
+  return skCore(w);
+}
+function sukuHTML(text){
+  return String(text).split(/([A-Za-z]+)/).map((part,i)=>i%2?`<span class="skw">${sukuKata(part).map(s=>`<span class="sk">${esc(s)}</span>`).join('')}</span>`:esc(part)).join('');
+}
+function sukuInfo(text){
+  const runs=String(text).match(/[A-Za-z]+/g)||[];
+  const parts=runs.map(r=>sukuKata(r));
+  const total=parts.reduce((a,x)=>a+x.length,0);
+  return `${parts.map(x=>x.join(' · ')).join('　')}（${total} 个 suku kata）`;
+}
+function renderWrite(s,task,stage){
+  const ids=task.ids, wp=task.wp, persist=()=>{if(!PR)saveS()};
+  if(wp.i>=ids.length){
+    stage.innerHTML=`<section class="panel"><h2>✍️ 生字练习完成！</h2><p>今天的 ${ids.length} 个生字，每个都写了 3 遍。接下来开始测试。</p>
+      <button class="btn mt" id="wgo" style="width:100%">开始测试</button>
+      <div class="row mt" style="justify-content:space-between"><button class="linkbtn" id="wagain">再练一遍</button><button class="linkbtn" id="wback">← 返回翻卡</button></div></section>`;
+    $('#wgo').onclick=()=>{wp.on=false;wp.done=true;persist();cardFlipped=false;advance(true)};
+    $('#wagain').onclick=()=>{task.wp={on:true,i:0,n:0};persist();renderWrite(s,task,stage)};
+    $('#wback').onclick=()=>{wp.on=false;persist();renderCards(s,task,stage)};
+    return;
+  }
+  const w=WORDS[ids[wp.i]], pct=Math.round((wp.i*3+wp.n)/(ids.length*3)*100);
+  stage.innerHTML=`<div class="count">✍️ 练习生字：第 ${wp.i+1} 个，共 ${ids.length} 个</div><div class="progress"><span style="width:${pct}%"></span></div>
+    <article class="card"><div class="card-top"><span>${CH[w.ch].label}</span><span class="kind">抄写 第 ${wp.n+1} 遍 / 共 3 遍</span></div>
+    <div class="card-body"><p class="zh">${esc(w.z)}</p><p class="term">${sukuHTML(w.t)}</p>${w.a&&w.a.length>1?'<p class="small muted">（写出其中任何一个都算对）</p>':''}<div class="row mt">${speakBtn(w.t)}</div>
+      <input id="wi" class="field mt" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="照着上面的词写一遍">
+      <div id="wfb" aria-live="polite"></div>
+      <div class="wdots" aria-hidden="true">${[0,1,2].map(k=>`<i class="${k<wp.n?'on':''}"></i>`).join('')}</div>
+      <div class="row mt"><button class="btn" id="wok">检查</button></div></div></article>
+    <div class="row mt" style="justify-content:flex-end"><button class="linkbtn" id="wback">← 返回翻卡</button></div>`;
+  const inp=$('#wi');
+  const check=()=>{
+    if(inp.disabled)return;
+    const v=inp.value;if(!v.trim())return;
+    if([w.t,...(w.a||[])].some(x=>norm(v)===norm(x))){
+      inp.disabled=true;inp.classList.add('right');$('#wfb').innerHTML='<div class="feedback ok">✓ 写对了</div>';
+      wp.n++;if(wp.n>=3){wp.n=0;wp.i++}persist();
+      setTimeout(()=>renderWrite(s,task,stage),500);
+    }else{
+      inp.classList.add('wrong');$('#wfb').innerHTML='<div class="feedback bad">拼法不太对，对照上面的词，再写一次。</div>';inp.focus();inp.select();
+    }
+  };
+  $('#wok').onclick=check;
+  inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();check()}};
+  inp.oninput=()=>{inp.classList.remove('wrong');const f=$('#wfb');if(f&&!inp.disabled)f.innerHTML=''};
+  $('#wback').onclick=()=>{wp.on=false;persist();renderCards(s,task,stage)};
+  inp.focus();
 }
 function renderTask(){
   const s=PR||S.session, task=s.tasks[s.i], stage=$('#stage');
